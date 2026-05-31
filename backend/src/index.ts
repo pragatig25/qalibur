@@ -1,4 +1,8 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
+// Anchor to this file (not cwd) so `.env` resolves whether you run via
+// `npm run dev` (cwd=backend/) or `tsx backend/src/index.ts` (cwd=root).
+loadEnv({ path: new URL("../../.env", import.meta.url) });
+
 import express from "express";
 import cors from "cors";
 import { runRoutes } from "./routes/runs.js";
