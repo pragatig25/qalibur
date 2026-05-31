@@ -82,9 +82,13 @@ type SSEClient = {
   res: import("express").Response;
 };
 
+type ApprovalDecision = "approved" | "rejected";
+type ApprovalResolver = (decision: ApprovalDecision) => void;
+
 class RunStore {
   private runs = new Map<string, Run>();
   private sseClients = new Map<string, SSEClient[]>();
+  private pendingApprovals = new Map<string, ApprovalResolver>();
 
   createRun(repoUrl: string, featureDescription: string): Run {
     const run: Run = {
@@ -193,6 +197,28 @@ class RunStore {
       runId,
       clients.filter((c) => c.id !== clientId)
     );
+  }
+
+  // Pipeline calls this when a gate exhausts retries — resolves when a
+  // human posts to /api/runs/:id/approve or /reject.
+  awaitApproval(runId: string): Promise<ApprovalDecision> {
+    return new Promise((resolve) => {
+      this.pendingApprovals.set(runId, resolve);
+    });
+  }
+
+  // Returns true if a pipeline was actually waiting; false if the approve
+  // call arrived too late (server restart) or for a non-blocked run.
+  resolveApproval(runId: string, decision: ApprovalDecision): boolean {
+    const resolver = this.pendingApprovals.get(runId);
+    if (!resolver) return false;
+    this.pendingApprovals.delete(runId);
+    resolver(decision);
+    return true;
+  }
+
+  hasPendingApproval(runId: string): boolean {
+    return this.pendingApprovals.has(runId);
   }
 
   private broadcast(runId: string, data: unknown): void {

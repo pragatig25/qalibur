@@ -1,7 +1,16 @@
 import { config as loadEnv } from "dotenv";
-// Anchor to this file (not cwd) so `.env` resolves whether you run via
-// `npm run dev` (cwd=backend/) or `tsx backend/src/index.ts` (cwd=root).
-loadEnv({ path: new URL("../../.env", import.meta.url) });
+import { existsSync } from "fs";
+import { resolve } from "path";
+
+// Look for .env in either the cwd (project root) or one level up
+// (when run from backend/ via `npm run dev:backend`). First match wins.
+for (const candidate of [".env", "../.env"]) {
+  const abs = resolve(candidate);
+  if (existsSync(abs)) {
+    loadEnv({ path: abs });
+    break;
+  }
+}
 
 import express from "express";
 import cors from "cors";

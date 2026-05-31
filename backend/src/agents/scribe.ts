@@ -6,7 +6,11 @@ Given a test strategy, produce well-structured Gherkin .feature file content.
 Each scenario should map to a specific risk area from the strategy.
 Use proper Given/When/Then format with tags for priority and risk level.`;
 
-export async function scribeAgent(runId: string, strategy: string): Promise<string> {
+export async function scribeAgent(
+  runId: string,
+  strategy: string,
+  feedback: string | null = null
+): Promise<string> {
   const run = store.getRun(runId);
   if (!run) throw new Error(`Run ${runId} not found`);
 
@@ -23,7 +27,14 @@ Generate complete Gherkin .feature file(s) content with:
 - @risk-high, @risk-medium, @risk-low tags
 - Scenario Outline with Examples tables where appropriate
 - Background sections for common setup
-- Clear, testable Given/When/Then steps`;
+- Clear, testable Given/When/Then steps${
+    feedback
+      ? `
+
+REVISION NOTES — your previous attempt did not pass the quality gate. Address the feedback below, then produce the complete revised feature file:
+${feedback}`
+      : ""
+  }`;
 
   return callLLM(SYSTEM, userMessage, { maxTokens: 8192 });
 }

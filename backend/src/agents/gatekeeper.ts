@@ -15,12 +15,12 @@ interface GateReviewResult {
   attempt: number;
 }
 
-const THRESHOLD = 9.5;
+// Match pipeline.ts default; override via GATE_THRESHOLD env var.
+const THRESHOLD = Number(process.env.GATE_THRESHOLD ?? 8.0);
 
-const SYSTEM = `You are Gatekeeper, a strict quality gate reviewer for QE artifacts.
+const SYSTEM = `You are Gatekeeper, a fair-but-strict quality gate reviewer for QE artifacts.
 Score each artifact against quality criteria on a scale of 0-10.
-Be rigorous — only pass artifacts that meet production-quality standards.
-The pass threshold is ${THRESHOLD}/10.
+The pass threshold is ${THRESHOLD}/10 — calibrate so a competent senior QE engineer's first-draft work scores 7-8, polished production-ready work scores 9+, and only obviously incomplete or incorrect work scores below 7.
 
 Scoring criteria:
 - Completeness: Does it cover all required areas?
@@ -82,7 +82,7 @@ Return JSON:
     agent: artifact.agent,
     score: result.score,
     criteria: result.criteria,
-    passed: result.score >= THRESHOLD,
+    passed: result.score >= Number(process.env.GATE_THRESHOLD ?? 8.0),
     attempt,
   };
 }

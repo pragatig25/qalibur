@@ -72,12 +72,18 @@ runRoutes.post("/runs/:id/approve", (req, res) => {
     res.status(400).json({ error: "run is not gate-blocked" });
     return;
   }
-  store.updateRun(run.id, { status: "running" });
-  store.addLog(run.id, {
-    agent: run.currentAgent ?? "gatekeeper",
-    event: "complete",
-    message: "Human approved — continuing pipeline",
-  });
+  // The pipeline function is awaiting store.awaitApproval(runId). Resolve
+  // it — the pipeline will continue from where it was blocked.
+  const resumed = store.resolveApproval(run.id, "approved");
+  if (!resumed) {
+    // The server probably restarted while the run was blocked; the
+    // awaiting promise is gone. We can't recover from in-memory state.
+    res.status(409).json({
+      error:
+        "no pipeline is awaiting approval (server may have restarted since the gate blocked). Start a new run.",
+    });
+    return;
+  }
   res.json({ status: "approved" });
 });
 
@@ -88,11 +94,15 @@ runRoutes.post("/runs/:id/reject", (req, res) => {
     return;
   }
   const { note } = req.body;
-  store.updateRun(run.id, { status: "failed" });
   store.addLog(run.id, {
     agent: run.currentAgent ?? "gatekeeper",
     event: "error",
-    message: `Human rejected: ${note ?? "no reason given"}`,
+    message: `Human rejected${note ? `: ${note}` : ""}`,
   });
+  const resumed = store.resolveApproval(run.id, "rejected");
+  if (!resumed) {
+    // Same fallback as approve — if nothing is waiting, just mark failed.
+    store.updateRun(run.id, { status: "failed" });
+  }
   res.json({ status: "rejected" });
 });

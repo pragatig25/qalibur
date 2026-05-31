@@ -6,7 +6,11 @@ Given a coverage gap analysis, create a comprehensive test strategy document in 
 Include equivalence partition (EP) tables for each major area, risk ratings, and priority order.
 The output should be a complete test strategy document.`;
 
-export async function strategistAgent(runId: string, scoutResult: unknown): Promise<string> {
+export async function strategistAgent(
+  runId: string,
+  scoutResult: unknown,
+  feedback: string | null = null
+): Promise<string> {
   const run = store.getRun(runId);
   if (!run) throw new Error(`Run ${runId} not found`);
 
@@ -24,7 +28,14 @@ Generate a complete test strategy in Markdown with:
 3. Equivalence partition tables for each major area
 4. Test priority order (critical → high → medium → low)
 5. Recommended test types per area (unit, integration, e2e, visual)
-6. Entry/exit criteria`;
+6. Entry/exit criteria${
+    feedback
+      ? `
+
+REVISION NOTES — your previous attempt was reviewed and did not pass the quality gate. Address the feedback below, then produce a complete revised strategy (not just a diff):
+${feedback}`
+      : ""
+  }`;
 
   return callLLM(SYSTEM, userMessage, { maxTokens: 8192 });
 }

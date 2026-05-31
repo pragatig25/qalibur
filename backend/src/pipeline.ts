@@ -1,4 +1,4 @@
-import { store, type AgentName } from "./store.js";
+import { store, type AgentName, type Artifact } from "./store.js";
 import { scoutAgent } from "./agents/scout.js";
 import { strategistAgent } from "./agents/strategist.js";
 import { scribeAgent } from "./agents/scribe.js";
@@ -10,34 +10,143 @@ import { runnerAgent } from "./agents/runner.js";
 import { heraldAgent } from "./agents/herald.js";
 import { triageAgent } from "./agents/triage.js";
 
-function log(runId: string, agent: AgentName, event: "start" | "progress" | "complete" | "error", message: string, data?: unknown) {
+const GATE_THRESHOLD = Number(process.env.GATE_THRESHOLD ?? 8.0);
+const MAX_GATE_ATTEMPTS = Number(process.env.MAX_GATE_ATTEMPTS ?? 3);
+
+function log(
+  runId: string,
+  agent: AgentName,
+  event: "start" | "progress" | "complete" | "error",
+  message: string,
+  data?: unknown
+) {
   store.addLog(runId, { agent, event, message, data });
 }
 
-async function gateArtifact(runId: string, artifactId: string, targetAgent: AgentName): Promise<boolean> {
-  const maxAttempts = 3;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    log(runId, "gatekeeper", "start", `Reviewing ${targetAgent} output (attempt ${attempt}/${maxAttempts})`);
-    const review = await gatekeeperAgent(runId, artifactId, attempt);
-    store.addGateReview(runId, review);
+/**
+ * Run one pipeline stage:
+ *   1. Generate an artifact (first attempt has no feedback)
+ *   2. Score it with the gatekeeper
+ *   3. If below threshold, REGENERATE with the gatekeeper's feedback
+ *      (this is what makes "retry" meaningful — the old version just
+ *      re-scored the same artifact and got the same score)
+ *   4. After MAX_GATE_ATTEMPTS, mark gate_blocked and await human approval
+ *
+ * Returns the latest output. `passed` indicates whether the stage cleared
+ * the gate (true on auto-pass OR human approval) or was rejected.
+ */
+async function runGatedStage<T>(
+  runId: string,
+  agentName: AgentName,
+  artifactMeta: { type: string; filename: string },
+  generate: (feedback: string | null) => Promise<T>,
+  serialize: (out: T) => string = (out) => (typeof out === "string" ? out : JSON.stringify(out, null, 2))
+): Promise<{ output: T; artifact: Artifact; passed: boolean }> {
+  let output: T | null = null;
+  let artifact: Artifact | null = null;
+  let lastFeedback: string | null = null;
 
-    if (review.passed) {
-      log(runId, "gatekeeper", "complete", `Passed with score ${review.score}/10`);
-      store.addLog(runId, { agent: "gatekeeper", event: "gate_pass", message: `Score: ${review.score}` });
-      return true;
+  for (let attempt = 1; attempt <= MAX_GATE_ATTEMPTS; attempt++) {
+    store.updateRun(runId, { currentAgent: agentName });
+    if (attempt === 1) {
+      log(runId, agentName, "start", `Starting (${artifactMeta.type})`);
+    } else {
+      log(
+        runId,
+        agentName,
+        "start",
+        `Regenerating with gatekeeper feedback (attempt ${attempt}/${MAX_GATE_ATTEMPTS})`
+      );
     }
 
-    log(runId, "gatekeeper", "progress", `Score ${review.score}/10 — below threshold`);
-    store.addLog(runId, { agent: "gatekeeper", event: "gate_fail", message: `Score: ${review.score}` });
+    output = await generate(lastFeedback);
+    artifact = store.addArtifact(runId, {
+      agent: agentName,
+      type: artifactMeta.type,
+      filename: artifactMeta.filename,
+      content: serialize(output),
+    });
+    log(runId, agentName, "complete", `Produced ${artifactMeta.filename}`);
 
-    if (attempt < maxAttempts) {
-      store.addLog(runId, { agent: "gatekeeper", event: "retry", message: `Retrying ${targetAgent}` });
+    log(
+      runId,
+      "gatekeeper",
+      "start",
+      `Reviewing ${agentName} output (attempt ${attempt}/${MAX_GATE_ATTEMPTS})`
+    );
+    const review = await gatekeeperAgent(runId, artifact.id, attempt);
+    store.addGateReview(runId, review);
+
+    if (review.score >= GATE_THRESHOLD) {
+      log(runId, "gatekeeper", "complete", `Passed with score ${review.score}/10`);
+      store.addLog(runId, {
+        agent: "gatekeeper",
+        event: "gate_pass",
+        message: `Score: ${review.score}`,
+      });
+      return { output, artifact, passed: true };
+    }
+
+    log(
+      runId,
+      "gatekeeper",
+      "progress",
+      `Score ${review.score}/10 — below ${GATE_THRESHOLD} threshold`
+    );
+    store.addLog(runId, {
+      agent: "gatekeeper",
+      event: "gate_fail",
+      message: `Score: ${review.score}`,
+    });
+
+    // Build feedback for the next regeneration attempt.
+    lastFeedback = formatFeedback(review.criteria);
+
+    if (attempt < MAX_GATE_ATTEMPTS) {
+      store.addLog(runId, {
+        agent: "gatekeeper",
+        event: "retry",
+        message: `Sending feedback to ${agentName}`,
+      });
     }
   }
 
-  log(runId, "gatekeeper", "error", `Failed after ${maxAttempts} attempts — flagging for human review`);
+  // Exhausted retries — wait for a human decision.
+  log(
+    runId,
+    "gatekeeper",
+    "error",
+    `Failed after ${MAX_GATE_ATTEMPTS} attempts — awaiting human review`
+  );
   store.updateRun(runId, { status: "gate_blocked", currentAgent: "gatekeeper" });
-  return false;
+
+  const decision = await store.awaitApproval(runId);
+
+  if (decision === "approved") {
+    log(runId, "gatekeeper", "complete", "Human approved — continuing pipeline");
+    store.addLog(runId, {
+      agent: "gatekeeper",
+      event: "gate_pass",
+      message: "Human override",
+    });
+    store.updateRun(runId, { status: "running" });
+    return { output: output!, artifact: artifact!, passed: true };
+  }
+
+  log(runId, "gatekeeper", "error", "Human rejected — failing run");
+  store.updateRun(runId, { status: "failed" });
+  return { output: output!, artifact: artifact!, passed: false };
+}
+
+function formatFeedback(criteria: Record<string, { score: number; reasoning: string }>): string {
+  const lines = Object.entries(criteria)
+    .sort(([, a], [, b]) => a.score - b.score)
+    .map(([name, { score, reasoning }]) => `- ${name} (${score}/10): ${reasoning}`);
+  return [
+    "The previous attempt scored below the quality threshold.",
+    "Address each criterion below, focusing on the lowest scores first:",
+    ...lines,
+  ].join("\n");
 }
 
 export async function runPipeline(runId: string): Promise<void> {
@@ -46,11 +155,11 @@ export async function runPipeline(runId: string): Promise<void> {
 
   store.updateRun(runId, { status: "running" });
 
-  // Scout
+  // Scout (no gate — it just observes)
   store.updateRun(runId, { currentAgent: "scout" });
   log(runId, "scout", "start", "Analyzing repository structure");
   const scoutResult = await scoutAgent(runId);
-  const scoutArtifact = store.addArtifact(runId, {
+  store.addArtifact(runId, {
     agent: "scout",
     type: "coverage-gap",
     filename: "coverage-gap.json",
@@ -58,59 +167,40 @@ export async function runPipeline(runId: string): Promise<void> {
   });
   log(runId, "scout", "complete", "Repository analysis complete");
 
-  // Strategist
-  store.updateRun(runId, { currentAgent: "strategist" });
-  log(runId, "strategist", "start", "Generating test strategy");
-  const strategyResult = await strategistAgent(runId, scoutResult);
-  const strategyArtifact = store.addArtifact(runId, {
-    agent: "strategist",
-    type: "test-strategy",
-    filename: "test-strategy.md",
-    content: strategyResult,
-  });
-  log(runId, "strategist", "complete", "Test strategy generated");
+  // Strategist (gated, retries with feedback)
+  const strategistStage = await runGatedStage<string>(
+    runId,
+    "strategist",
+    { type: "test-strategy", filename: "test-strategy.md" },
+    (feedback) => strategistAgent(runId, scoutResult, feedback)
+  );
+  if (!strategistStage.passed) return;
+  const strategyResult = strategistStage.output;
 
-  // Gate the strategy
-  const strategyPassed = await gateArtifact(runId, strategyArtifact.id, "strategist");
-  if (!strategyPassed) return;
+  // Scribe (gated, retries with feedback)
+  const scribeStage = await runGatedStage<string>(
+    runId,
+    "scribe",
+    { type: "feature-file", filename: "tests.feature" },
+    (feedback) => scribeAgent(runId, strategyResult, feedback)
+  );
+  if (!scribeStage.passed) return;
+  const gherkinResult = scribeStage.output;
 
-  // Scribe
-  store.updateRun(runId, { currentAgent: "scribe" });
-  log(runId, "scribe", "start", "Writing Gherkin feature files");
-  const gherkinResult = await scribeAgent(runId, strategyResult);
-  const gherkinArtifact = store.addArtifact(runId, {
-    agent: "scribe",
-    type: "feature-file",
-    filename: "tests.feature",
-    content: gherkinResult,
-  });
-  log(runId, "scribe", "complete", "Gherkin feature files written");
+  // Crafter (gated, retries with feedback)
+  const crafterStage = await runGatedStage<string>(
+    runId,
+    "crafter",
+    { type: "playwright-script", filename: "tests.spec.ts" },
+    (feedback) => crafterAgent(runId, gherkinResult, feedback)
+  );
+  if (!crafterStage.passed) return;
+  const playwrightResult = crafterStage.output;
 
-  // Gate the Gherkin
-  const gherkinPassed = await gateArtifact(runId, gherkinArtifact.id, "scribe");
-  if (!gherkinPassed) return;
-
-  // Crafter
-  store.updateRun(runId, { currentAgent: "crafter" });
-  log(runId, "crafter", "start", "Generating Playwright test scripts");
-  const playwrightResult = await crafterAgent(runId, gherkinResult);
-  const playwrightArtifact = store.addArtifact(runId, {
-    agent: "crafter",
-    type: "playwright-script",
-    filename: "tests.spec.ts",
-    content: playwrightResult,
-  });
-  log(runId, "crafter", "complete", "Playwright scripts generated");
-
-  // Architect + Gatekeeper review in parallel
+  // Architect — advisory review (does not gate)
   store.updateRun(runId, { currentAgent: "architect" });
   log(runId, "architect", "start", "Reviewing Playwright scripts for structure");
-
-  const [archReview, crafterGatePassed] = await Promise.all([
-    architectAgent(runId, playwrightResult),
-    gateArtifact(runId, playwrightArtifact.id, "crafter"),
-  ]);
-
+  const archReview = await architectAgent(runId, playwrightResult);
   store.addArtifact(runId, {
     agent: "architect",
     type: "arch-review",
@@ -119,8 +209,6 @@ export async function runPipeline(runId: string): Promise<void> {
   });
   log(runId, "architect", "complete", `Architecture review: ${archReview.verdict}`);
 
-  if (!crafterGatePassed) return;
-
   // Deployer
   store.updateRun(runId, { currentAgent: "deployer" });
   log(runId, "deployer", "start", "Committing artifacts and opening PR");
@@ -128,7 +216,12 @@ export async function runPipeline(runId: string): Promise<void> {
   if (deployResult.prUrl) {
     store.updateRun(runId, { prUrl: deployResult.prUrl });
   }
-  log(runId, "deployer", "complete", deployResult.prUrl ? `PR opened: ${deployResult.prUrl}` : "Artifacts committed");
+  log(
+    runId,
+    "deployer",
+    "complete",
+    deployResult.prUrl ? `PR opened: ${deployResult.prUrl}` : "Artifacts committed"
+  );
 
   // Runner
   store.updateRun(runId, { currentAgent: "runner" });
@@ -137,7 +230,12 @@ export async function runPipeline(runId: string): Promise<void> {
   if (runResult.actionsRunUrl) {
     store.updateRun(runId, { actionsRunUrl: runResult.actionsRunUrl });
   }
-  log(runId, "runner", "complete", runResult.actionsRunUrl ? `Actions run: ${runResult.actionsRunUrl}` : "Workflow triggered");
+  log(
+    runId,
+    "runner",
+    "complete",
+    runResult.actionsRunUrl ? `Actions run: ${runResult.actionsRunUrl}` : "Workflow triggered"
+  );
 
   // Herald
   store.updateRun(runId, { currentAgent: "herald" });
@@ -151,7 +249,7 @@ export async function runPipeline(runId: string): Promise<void> {
   });
   log(runId, "herald", "complete", "Execution report generated");
 
-  // Triage (if there are failures to analyze)
+  // Triage
   store.updateRun(runId, { currentAgent: "triage" });
   log(runId, "triage", "start", "Classifying test results");
   const triageResults = await triageAgent(runId);

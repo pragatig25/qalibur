@@ -6,7 +6,11 @@ Given Gherkin feature files, produce working Playwright test code.
 Use modern Playwright patterns: page object model where appropriate, proper assertions, test.describe blocks.
 Output complete, runnable .spec.ts file content.`;
 
-export async function crafterAgent(runId: string, gherkinContent: string): Promise<string> {
+export async function crafterAgent(
+  runId: string,
+  gherkinContent: string,
+  feedback: string | null = null
+): Promise<string> {
   const run = store.getRun(runId);
   if (!run) throw new Error(`Run ${runId} not found`);
 
@@ -25,7 +29,14 @@ Generate complete Playwright .spec.ts file content with:
 - Proper page interactions (click, fill, goto, waitFor)
 - Strong assertions using expect()
 - Comments linking back to Gherkin scenarios
-- Data-driven tests for Scenario Outlines`;
+- Data-driven tests for Scenario Outlines${
+    feedback
+      ? `
+
+REVISION NOTES — your previous attempt did not pass the quality gate. Address the feedback below, then produce the complete revised spec file:
+${feedback}`
+      : ""
+  }`;
 
   return callLLM(SYSTEM, userMessage, { maxTokens: 8192 });
 }
