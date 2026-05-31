@@ -105,4 +105,21 @@ export const api = {
   isDemo() {
     return MODE === "demo";
   },
+
+  async health() {
+    if (MODE === "demo") return { reachable: false, reason: "demo-build" };
+    try {
+      const res = await fetch(`${API_URL}/api/health`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      if (!res.ok) return { reachable: false, reason: `http-${res.status}` };
+      const body = await res.json();
+      return { reachable: true, ...body };
+    } catch (err) {
+      return {
+        reachable: false,
+        reason: err.name === "TimeoutError" ? "timeout" : "network",
+      };
+    }
+  },
 };

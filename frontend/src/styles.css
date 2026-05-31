@@ -847,6 +847,118 @@ textarea.input {
   align-items: start;
 }
 
+/* === banners (Live page mode detection) === */
+.banner {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 15px;
+  line-height: 1.55;
+  margin-top: 8px;
+}
+.banner code {
+  font-size: 13px;
+}
+.banner-icon {
+  font-size: 14px;
+  line-height: 1.55;
+  flex: none;
+}
+.banner--ok {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+}
+.banner--ok .banner-icon {
+  color: var(--ok);
+}
+.banner--warn {
+  border-color: var(--warn);
+  background: var(--warn-bg);
+}
+.banner--warn .banner-icon {
+  color: var(--warn);
+}
+.banner--err {
+  border-color: var(--bad);
+  background: var(--bad-bg);
+}
+.banner--err .banner-icon {
+  color: var(--bad);
+}
+.banner--neutral {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+/* === disabled live form === */
+.live--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.live--disabled .btn {
+  cursor: not-allowed;
+}
+
+/* === setup steps (numbered list) === */
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 18px;
+  counter-reset: step;
+}
+.steps > li {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px 26px;
+}
+.steps > li > h4 {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 18px;
+  letter-spacing: -0.005em;
+  margin-bottom: 10px;
+  color: var(--accent);
+}
+.steps > li > p {
+  color: var(--muted);
+  font-size: 14.5px;
+  margin: 8px 0;
+}
+.steps > li > p:last-child {
+  margin-bottom: 0;
+}
+.codeblock {
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.65;
+  background: var(--ink);
+  color: #f7eedd;
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 6px 0;
+  white-space: pre;
+}
+.callout {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.callout code {
+  background: var(--sunk);
+}
+
 /* === footer === */
 .site-foot {
   border-top: 1px solid var(--line);
