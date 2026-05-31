@@ -49,9 +49,8 @@ export function Demo() {
   }, []);
 
   useEffect(() => {
-    if (logEnd.current) {
-      logEnd.current.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
+    const stream = logEnd.current?.parentElement;
+    if (stream) stream.scrollTop = stream.scrollHeight;
   }, [log.length]);
 
   function start() {
@@ -66,7 +65,8 @@ export function Demo() {
             setPhase("done");
             return;
           }
-          setLog((prev) => [...prev, entries[i]]);
+          const entry = entries[i];
+          setLog((prev) => [...prev, entry]);
           setTick((t) => t + 1);
           i++;
         }, speed);
