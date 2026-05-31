@@ -1,4 +1,3 @@
-import { Octokit } from "octokit";
 import { store } from "../store.js";
 
 interface DeployResult {
@@ -28,6 +27,7 @@ export async function deployerAgent(runId: string): Promise<DeployResult> {
   }
 
   const [, repoOwner, repoName] = repoMatch;
+  const { Octokit } = await import("@octokit/rest");
   const octokit = new Octokit({ auth: token });
   const branch = `qalibur/run-${runId.slice(0, 8)}`;
 

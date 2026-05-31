@@ -1,9 +1,48 @@
+# dependencies
 node_modules/
+.pnpm-store/
+
+# build output
 dist/
+build/
+*.tsbuildinfo
+
+# secrets — never commit
 .env
-*.local
+.env.local
+.env.*.local
+.env.production
+.env.development.local
+*.pem
+*.key
+*-credentials.json
+service-account*.json
+
+# editor / OS junk
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.recommended.json
+*:Zone.Identifier
+
+# test artifacts
 playwright-report/
 test-results/
 coverage/
-*.tsbuildinfo
+.nyc_output/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# misc
+*.local
+.cache/
+.parcel-cache/
+.turbo/

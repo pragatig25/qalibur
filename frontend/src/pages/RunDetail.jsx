@@ -11,13 +11,20 @@ export function RunDetail() {
   const [logEntries, setLogEntries] = useState([]);
   const [tab, setTab] = useState("log");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    api.getRun(id).then((data) => {
-      setRun(data);
-      setLogEntries(data.log || []);
-      setLoading(false);
-    });
+    api
+      .getRun(id)
+      .then((data) => {
+        setRun(data);
+        setLogEntries(data?.log || []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
   }, [id]);
 
   useEffect(() => {
@@ -43,65 +50,99 @@ export function RunDetail() {
   }
 
   if (loading) {
-    return <div style={{ color: "var(--text-muted)" }}>Loading run...</div>;
+    return (
+      <div className="page wrap">
+        <div className="empty">
+          <p>Loading run…</p>
+        </div>
+      </div>
+    );
   }
 
-  if (!run) {
-    return <div style={{ color: "var(--red)" }}>Run not found</div>;
+  if (error || !run) {
+    return (
+      <div className="page wrap">
+        <div className="empty">
+          <p>Couldn't load run: {error || "not found"}</p>
+          <Link to="/runs" className="btn">
+            Back to runs
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   const tabs = [
-    { key: "log", label: "Agent Log" },
-    { key: "artifacts", label: `Artifacts (${run.artifacts?.length || 0})` },
-    { key: "gates", label: `Gate Reviews (${run.gateReviews?.length || 0})` },
+    { key: "log", label: "Agent log" },
+    { key: "artifacts", label: `Artefacts (${run.artifacts?.length || 0})` },
+    { key: "gates", label: `Gate reviews (${run.gateReviews?.length || 0})` },
     { key: "defects", label: `Defects (${run.defects?.length || 0})` },
   ];
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ marginBottom: 4 }}>
-            {run.featureDescription?.slice(0, 60) || "Run"}
-          </h1>
-          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            {run.id} &middot; {new Date(run.createdAt).toLocaleString()}
-          </div>
+    <div className="page wrap">
+      <div className="page-head">
+        <div className="titles">
+          <p className="eyebrow">
+            Run · <span className="mono">{run.id.slice(0, 8)}</span>
+          </p>
+          <h2>{run.featureDescription?.slice(0, 80) || "Untitled run"}</h2>
+          <p>
+            {run.repoUrl && (
+              <>
+                <span className="mono">{run.repoUrl.replace("https://github.com/", "")}</span> ·{" "}
+              </>
+            )}
+            {new Date(run.createdAt).toLocaleString()}
+          </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span className={`badge badge--${run.status}`}>{run.status}</span>
+        <div className="cta-row" style={{ marginTop: 0 }}>
+          <span className={`badge badge--${run.status} dot`}>
+            {run.status.replace("_", " ")}
+          </span>
           {run.status === "gate_blocked" && (
             <>
-              <button className="btn btn--primary" onClick={handleApprove}>
+              <button className="btn sm" onClick={handleApprove}>
                 Approve
               </button>
-              <button className="btn btn--danger" onClick={handleReject}>
+              <button className="btn ghost sm" onClick={handleReject}>
                 Reject
               </button>
             </>
           )}
           {run.artifacts?.some((a) => a.type === "report") && (
-            <Link to={`/run/${id}/report`} className="btn btn--ghost">
-              View Report
+            <Link to={`/run/${id}/report`} className="btn ghost sm">
+              Report
             </Link>
+          )}
+          {run.prUrl && (
+            <a
+              className="btn ghost sm"
+              href={run.prUrl}
+              target="_blank"
+              rel="noopener"
+            >
+              PR ↗
+            </a>
+          )}
+          {run.actionsRunUrl && (
+            <a
+              className="btn ghost sm"
+              href={run.actionsRunUrl}
+              target="_blank"
+              rel="noopener"
+            >
+              CI ↗
+            </a>
           )}
         </div>
       </div>
 
-      {run.prUrl && (
-        <div className="card" style={{ marginBottom: 16, display: "flex", gap: 16 }}>
-          <span style={{ color: "var(--text-muted)", fontSize: 13 }}>PR:</span>
-          <a href={run.prUrl} target="_blank" rel="noopener noreferrer">
-            {run.prUrl}
-          </a>
-        </div>
-      )}
-
-      <div className="artifact-tabs" style={{ marginBottom: 20 }}>
+      <div className="tabs" style={{ marginBottom: 18 }}>
         {tabs.map((t) => (
           <button
             key={t.key}
-            className={`artifact-tab ${tab === t.key ? "active" : ""}`}
+            className={`tab ${tab === t.key ? "active" : ""}`}
             onClick={() => setTab(t.key)}
           >
             {t.label}
@@ -110,48 +151,40 @@ export function RunDetail() {
       </div>
 
       {tab === "log" && <AgentLog entries={logEntries} />}
-
       {tab === "artifacts" && <ArtifactViewer artifacts={run.artifacts || []} />}
-
-      {tab === "gates" && (
-        <div>
-          {(run.gateReviews || []).length === 0 ? (
-            <div style={{ color: "var(--text-muted)" }}>No gate reviews yet</div>
-          ) : (
-            run.gateReviews.map((review) => (
-              <GateReview key={review.id} review={review} />
-            ))
-          )}
-        </div>
-      )}
-
-      {tab === "defects" && (
-        <div>
-          {(run.defects || []).length === 0 ? (
-            <div style={{ color: "var(--text-muted)" }}>No defects found</div>
-          ) : (
-            run.defects.map((defect) => (
-              <div className="card" key={defect.id} style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <strong>{defect.testName}</strong>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <span className={`badge badge--${defect.severity === "critical" || defect.severity === "high" ? "failed" : "pending"}`}>
-                      {defect.severity}
-                    </span>
-                    <span className="badge badge--running">{defect.classification}</span>
+      {tab === "gates" &&
+        ((run.gateReviews || []).length === 0 ? (
+          <div className="empty">
+            <p>No gate reviews yet.</p>
+          </div>
+        ) : (
+          run.gateReviews.map((review) => <GateReview key={review.id} review={review} />)
+        ))}
+      {tab === "defects" &&
+        ((run.defects || []).length === 0 ? (
+          <div className="empty">
+            <p>No defects classified yet.</p>
+          </div>
+        ) : (
+          run.defects.map((d) => (
+            <div className="gate" key={d.id}>
+              <div className="gate-head">
+                <div>
+                  <div className="who">{d.testName}</div>
+                  <div className="panel-sub" style={{ margin: 0 }}>
+                    {d.severity} · {d.classification}
                   </div>
                 </div>
-                <p style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8 }}>
-                  {defect.summary}
-                </p>
-                <p style={{ fontSize: 13 }}>
-                  <strong>Suggested fix:</strong> {defect.suggestedFix}
-                </p>
               </div>
-            ))
-          )}
-        </div>
-      )}
+              <p style={{ color: "var(--muted)", fontSize: 14.5, marginBottom: 8 }}>
+                {d.summary}
+              </p>
+              <p style={{ fontSize: 13.5 }}>
+                <strong>Suggested fix:</strong> {d.suggestedFix}
+              </p>
+            </div>
+          ))
+        ))}
     </div>
   );
 }

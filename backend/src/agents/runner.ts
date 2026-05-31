@@ -1,4 +1,3 @@
-import { Octokit } from "octokit";
 import { store } from "../store.js";
 
 interface RunnerResult {
@@ -26,6 +25,7 @@ export async function runnerAgent(runId: string): Promise<RunnerResult> {
   }
 
   const [, owner, repo] = repoMatch;
+  const { Octokit } = await import("@octokit/rest");
   const octokit = new Octokit({ auth: token });
   const repoClean = repo.replace(".git", "");
 
