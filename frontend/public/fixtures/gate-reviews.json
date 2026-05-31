@@ -1,0 +1,53 @@
+[
+  {
+    "id": "gate-001",
+    "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "artifactId": "art-002",
+    "agent": "strategist",
+    "score": 9.8,
+    "criteria": {
+      "completeness": { "score": 10, "reasoning": "Covers all identified coverage gaps with appropriate test types" },
+      "correctness": { "score": 9.5, "reasoning": "EP tables are well-formed, boundary values correctly identified" },
+      "structure": { "score": 10, "reasoning": "Clear sections with executive summary, risk matrix, EP tables, and criteria" },
+      "actionability": { "score": 9.5, "reasoning": "Each area has specific test types and priorities, ready for implementation" },
+      "clarity": { "score": 10, "reasoning": "Markdown formatting is clean, tables are readable, no ambiguity" }
+    },
+    "passed": true,
+    "attempt": 1,
+    "createdAt": "2026-05-29T14:32:15.000Z"
+  },
+  {
+    "id": "gate-002",
+    "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "artifactId": "art-003",
+    "agent": "scribe",
+    "score": 9.6,
+    "criteria": {
+      "completeness": { "score": 9.5, "reasoning": "All major scenarios covered, could add more negative cases" },
+      "correctness": { "score": 10, "reasoning": "Gherkin syntax is valid, Given/When/Then properly structured" },
+      "structure": { "score": 9.5, "reasoning": "Good use of Background, tags, and Scenario Outline with Examples" },
+      "actionability": { "score": 9.5, "reasoning": "Steps are specific enough for automation" },
+      "clarity": { "score": 9.5, "reasoning": "Clear language, no ambiguous steps" }
+    },
+    "passed": true,
+    "attempt": 1,
+    "createdAt": "2026-05-29T14:33:45.000Z"
+  },
+  {
+    "id": "gate-003",
+    "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "artifactId": "art-004",
+    "agent": "crafter",
+    "score": 9.7,
+    "criteria": {
+      "completeness": { "score": 9.5, "reasoning": "Covers happy path and primary failure case, data-driven boundary tests included" },
+      "correctness": { "score": 10, "reasoning": "Playwright API usage is correct, assertions are strong" },
+      "structure": { "score": 9.5, "reasoning": "Good use of describe blocks, beforeEach, and test isolation" },
+      "actionability": { "score": 10, "reasoning": "Scripts are immediately runnable with Playwright" },
+      "clarity": { "score": 9.5, "reasoning": "Test names are descriptive, locators use getByRole/getByLabel" }
+    },
+    "passed": true,
+    "attempt": 1,
+    "createdAt": "2026-05-29T14:36:10.000Z"
+  }
+]

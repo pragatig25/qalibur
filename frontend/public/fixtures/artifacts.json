@@ -1,0 +1,38 @@
+[
+  {
+    "id": "art-001",
+    "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "agent": "scout",
+    "type": "coverage-gap",
+    "filename": "coverage-gap.json",
+    "content": "{\n  \"repoUrl\": \"https://github.com/acme-corp/web-checkout\",\n  \"structure\": [\"src/cart/\", \"src/payment/\", \"src/orders/\", \"tests/unit/\"],\n  \"existingTests\": [\"tests/unit/cart.test.ts\"],\n  \"coverageGaps\": [\n    {\n      \"area\": \"Payment Processing\",\n      \"description\": \"No integration tests for Stripe webhook handling or payment failure scenarios\",\n      \"risk\": \"critical\",\n      \"suggestedTestTypes\": [\"integration\", \"e2e\"]\n    },\n    {\n      \"area\": \"Cart Edge Cases\",\n      \"description\": \"Missing boundary tests for quantity limits, coupon stacking, and currency conversion\",\n      \"risk\": \"high\",\n      \"suggestedTestTypes\": [\"unit\", \"integration\"]\n    },\n    {\n      \"area\": \"Order Confirmation\",\n      \"description\": \"No e2e tests for the post-payment order confirmation and email flow\",\n      \"risk\": \"medium\",\n      \"suggestedTestTypes\": [\"e2e\"]\n    }\n  ],\n  \"recommendations\": [\n    \"Add Stripe webhook integration tests with mock server\",\n    \"Implement boundary value analysis for cart quantities\",\n    \"Create e2e flow tests covering happy path and error recovery\"\n  ]\n}",
+    "createdAt": "2026-05-29T14:30:12.000Z"
+  },
+  {
+    "id": "art-002",
+    "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "agent": "strategist",
+    "type": "test-strategy",
+    "filename": "test-strategy.md",
+    "content": "# Test Strategy: Shopping Cart Checkout Flow\n\n## Executive Summary\nThis strategy covers the checkout flow from cart to payment confirmation, focusing on Stripe integration risk areas.\n\n## Risk Assessment Matrix\n\n| Area | Risk | Impact | Priority |\n|------|------|--------|----------|\n| Payment Processing | Critical | Revenue loss | P0 |\n| Cart Edge Cases | High | UX degradation | P1 |\n| Order Confirmation | Medium | Customer confusion | P2 |\n\n## Equivalence Partition Tables\n\n### Cart Quantity\n| Partition | Values | Expected |\n|-----------|--------|----------|\n| Valid low | 1 | Accept |\n| Valid mid | 5 | Accept |\n| Valid high | 99 | Accept |\n| Boundary | 0 | Reject |\n| Boundary | 100 | Reject |\n| Invalid | -1 | Reject |\n\n### Payment Amount\n| Partition | Values | Expected |\n|-----------|--------|----------|\n| Minimum | $0.50 | Accept (Stripe min) |\n| Typical | $49.99 | Accept |\n| High | $9,999 | Accept |\n| Over limit | $10,001 | Flag for review |",
+    "createdAt": "2026-05-29T14:31:45.000Z"
+  },
+  {
+    "id": "art-003",
+    "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "agent": "scribe",
+    "type": "feature-file",
+    "filename": "checkout.feature",
+    "content": "@priority-critical @risk-high\nFeature: Shopping Cart Checkout\n  As a customer\n  I want to complete my purchase\n  So that I receive my ordered items\n\n  Background:\n    Given I have items in my cart\n    And I am on the checkout page\n\n  @priority-critical\n  Scenario: Successful payment with valid card\n    When I enter valid card details\n    And I click \"Pay Now\"\n    Then the payment should be processed\n    And I should see the order confirmation page\n\n  @priority-critical\n  Scenario: Payment failure with declined card\n    When I enter a declined card number\n    And I click \"Pay Now\"\n    Then I should see an error message \"Payment declined\"\n    And my cart should remain intact",
+    "createdAt": "2026-05-29T14:33:20.000Z"
+  },
+  {
+    "id": "art-004",
+    "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "agent": "crafter",
+    "type": "playwright-script",
+    "filename": "checkout.spec.ts",
+    "content": "import { test, expect } from '@playwright/test';\n\ntest.describe('Shopping Cart Checkout', () => {\n  test.beforeEach(async ({ page }) => {\n    await page.goto('/cart');\n    await expect(page.getByRole('heading', { name: 'Your Cart' })).toBeVisible();\n  });\n\n  test('successful payment with valid card', async ({ page }) => {\n    await page.getByRole('button', { name: 'Checkout' }).click();\n    await page.getByLabel('Card number').fill('4242424242424242');\n    await page.getByLabel('Expiry').fill('12/28');\n    await page.getByLabel('CVC').fill('123');\n    await page.getByRole('button', { name: 'Pay Now' }).click();\n    await expect(page.getByText('Order Confirmed')).toBeVisible({ timeout: 10000 });\n  });\n\n  test('payment failure shows error', async ({ page }) => {\n    await page.getByRole('button', { name: 'Checkout' }).click();\n    await page.getByLabel('Card number').fill('4000000000000002');\n    await page.getByRole('button', { name: 'Pay Now' }).click();\n    await expect(page.getByText('Payment declined')).toBeVisible();\n  });\n});",
+    "createdAt": "2026-05-29T14:35:10.000Z"
+  }
+]

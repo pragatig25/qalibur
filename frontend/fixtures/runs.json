@@ -1,0 +1,123 @@
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "repoUrl": "https://github.com/acme-corp/web-checkout",
+    "featureDescription": "Shopping cart checkout flow with Stripe payment integration",
+    "status": "completed",
+    "currentAgent": null,
+    "log": [],
+    "artifacts": [
+      {
+        "id": "art-001",
+        "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "agent": "scout",
+        "type": "coverage-gap",
+        "filename": "coverage-gap.json",
+        "content": "{\n  \"repoUrl\": \"https://github.com/acme-corp/web-checkout\",\n  \"structure\": [\"src/cart/\", \"src/payment/\", \"src/orders/\", \"tests/unit/\"],\n  \"existingTests\": [\"tests/unit/cart.test.ts\"],\n  \"coverageGaps\": [\n    {\n      \"area\": \"Payment Processing\",\n      \"description\": \"No integration tests for Stripe webhook handling or payment failure scenarios\",\n      \"risk\": \"critical\",\n      \"suggestedTestTypes\": [\"integration\", \"e2e\"]\n    },\n    {\n      \"area\": \"Cart Edge Cases\",\n      \"description\": \"Missing boundary tests for quantity limits, coupon stacking, and currency conversion\",\n      \"risk\": \"high\",\n      \"suggestedTestTypes\": [\"unit\", \"integration\"]\n    },\n    {\n      \"area\": \"Order Confirmation\",\n      \"description\": \"No e2e tests for the post-payment order confirmation and email flow\",\n      \"risk\": \"medium\",\n      \"suggestedTestTypes\": [\"e2e\"]\n    }\n  ],\n  \"recommendations\": [\n    \"Add Stripe webhook integration tests with mock server\",\n    \"Implement boundary value analysis for cart quantities\",\n    \"Create e2e flow tests covering happy path and error recovery\"\n  ]\n}",
+        "createdAt": "2026-05-29T14:30:12.000Z"
+      },
+      {
+        "id": "art-002",
+        "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "agent": "strategist",
+        "type": "test-strategy",
+        "filename": "test-strategy.md",
+        "content": "# Test Strategy: Shopping Cart Checkout Flow\n\n## Executive Summary\nThis strategy covers the checkout flow from cart to payment confirmation, focusing on Stripe integration risk areas.\n\n## Risk Assessment Matrix\n\n| Area | Risk | Impact | Priority |\n|------|------|--------|----------|\n| Payment Processing | Critical | Revenue loss | P0 |\n| Cart Edge Cases | High | UX degradation | P1 |\n| Order Confirmation | Medium | Customer confusion | P2 |\n\n## Equivalence Partition Tables\n\n### Cart Quantity\n| Partition | Values | Expected |\n|-----------|--------|----------|\n| Valid low | 1 | Accept |\n| Valid mid | 5 | Accept |\n| Valid high | 99 | Accept |\n| Boundary | 0 | Reject |\n| Boundary | 100 | Reject |\n| Invalid | -1 | Reject |\n\n### Payment Amount\n| Partition | Values | Expected |\n|-----------|--------|----------|\n| Minimum | $0.50 | Accept (Stripe min) |\n| Typical | $49.99 | Accept |\n| High | $9,999 | Accept |\n| Over limit | $10,001 | Flag for review |\n\n## Test Types\n- **Unit:** Cart calculations, coupon logic\n- **Integration:** Stripe API, webhook handling\n- **E2E:** Full checkout flow, error recovery\n\n## Entry/Exit Criteria\n- Entry: Feature branch deployed to staging\n- Exit: All P0/P1 tests passing, >90% coverage on payment module",
+        "createdAt": "2026-05-29T14:31:45.000Z"
+      },
+      {
+        "id": "art-003",
+        "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "agent": "scribe",
+        "type": "feature-file",
+        "filename": "checkout.feature",
+        "content": "@priority-critical @risk-high\nFeature: Shopping Cart Checkout\n  As a customer\n  I want to complete my purchase\n  So that I receive my ordered items\n\n  Background:\n    Given I have items in my cart\n    And I am on the checkout page\n\n  @priority-critical\n  Scenario: Successful payment with valid card\n    When I enter valid card details\n    And I click \"Pay Now\"\n    Then the payment should be processed\n    And I should see the order confirmation page\n    And I should receive a confirmation email\n\n  @priority-critical\n  Scenario: Payment failure with declined card\n    When I enter a declined card number\n    And I click \"Pay Now\"\n    Then I should see an error message \"Payment declined\"\n    And my cart should remain intact\n    And no order should be created\n\n  @priority-high\n  Scenario Outline: Cart quantity boundaries\n    When I set item quantity to <quantity>\n    Then the cart should show <result>\n\n    Examples:\n      | quantity | result          |\n      | 1        | accepted        |\n      | 99       | accepted        |\n      | 0        | validation error|\n      | 100      | validation error|\n      | -1       | validation error|",
+        "createdAt": "2026-05-29T14:33:20.000Z"
+      },
+      {
+        "id": "art-004",
+        "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "agent": "crafter",
+        "type": "playwright-script",
+        "filename": "checkout.spec.ts",
+        "content": "import { test, expect } from '@playwright/test';\n\ntest.describe('Shopping Cart Checkout', () => {\n  test.beforeEach(async ({ page }) => {\n    await page.goto('/cart');\n    await expect(page.getByRole('heading', { name: 'Your Cart' })).toBeVisible();\n  });\n\n  test('successful payment with valid card', async ({ page }) => {\n    await page.getByRole('button', { name: 'Checkout' }).click();\n    await page.getByLabel('Card number').fill('4242424242424242');\n    await page.getByLabel('Expiry').fill('12/28');\n    await page.getByLabel('CVC').fill('123');\n    await page.getByRole('button', { name: 'Pay Now' }).click();\n    await expect(page.getByText('Order Confirmed')).toBeVisible({ timeout: 10000 });\n  });\n\n  test('payment failure shows error and preserves cart', async ({ page }) => {\n    await page.getByRole('button', { name: 'Checkout' }).click();\n    await page.getByLabel('Card number').fill('4000000000000002');\n    await page.getByLabel('Expiry').fill('12/28');\n    await page.getByLabel('CVC').fill('123');\n    await page.getByRole('button', { name: 'Pay Now' }).click();\n    await expect(page.getByText('Payment declined')).toBeVisible();\n    await page.goBack();\n    await expect(page.getByRole('heading', { name: 'Your Cart' })).toBeVisible();\n  });\n\n  [1, 99].forEach((qty) => {\n    test(`accepts valid quantity: ${qty}`, async ({ page }) => {\n      await page.getByLabel('Quantity').fill(String(qty));\n      await expect(page.getByLabel('Quantity')).toHaveValue(String(qty));\n    });\n  });\n\n  [0, 100, -1].forEach((qty) => {\n    test(`rejects invalid quantity: ${qty}`, async ({ page }) => {\n      await page.getByLabel('Quantity').fill(String(qty));\n      await page.getByRole('button', { name: 'Update' }).click();\n      await expect(page.getByText(/invalid quantity/i)).toBeVisible();\n    });\n  });\n});",
+        "createdAt": "2026-05-29T14:35:10.000Z"
+      },
+      {
+        "id": "art-005",
+        "runId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "agent": "herald",
+        "type": "report",
+        "filename": "report.html",
+        "content": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Qalibur Report</title><style>body{font-family:system-ui;max-width:800px;margin:40px auto;padding:0 20px;color:#1a1a2e;background:#f8f9fa}.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px}h1{font-size:24px}.badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700}.badge-pass{background:#dcfce7;color:#166534}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{padding:10px;text-align:left;border-bottom:1px solid #e5e7eb}th{font-size:12px;text-transform:uppercase;color:#6b7280}.score{font-size:24px;font-weight:700}.score-pass{color:#16a34a}</style></head><body><div class=\"header\"><h1>Qalibur Execution Report</h1><span class=\"badge badge-pass\">COMPLETED</span></div><h2>Summary</h2><table><tr><th>Metric</th><th>Value</th></tr><tr><td>Artifacts Generated</td><td>5</td></tr><tr><td>Gate Reviews</td><td>3 passed</td></tr><tr><td>Average Gate Score</td><td><span class=\"score score-pass\">9.7</span></td></tr><tr><td>Defects Found</td><td>0</td></tr></table><h2>Gate Reviews</h2><table><tr><th>Agent</th><th>Score</th><th>Status</th></tr><tr><td>Strategist</td><td>9.8</td><td><span class=\"badge badge-pass\">PASS</span></td></tr><tr><td>Scribe</td><td>9.6</td><td><span class=\"badge badge-pass\">PASS</span></td></tr><tr><td>Crafter</td><td>9.7</td><td><span class=\"badge badge-pass\">PASS</span></td></tr></table></body></html>",
+        "createdAt": "2026-05-29T14:40:00.000Z"
+      }
+    ],
+    "gateReviews": [],
+    "defects": [],
+    "prUrl": "https://github.com/acme-corp/web-checkout/pull/42",
+    "actionsRunUrl": "https://github.com/acme-corp/web-checkout/actions/runs/12345",
+    "createdAt": "2026-05-29T14:30:00.000Z",
+    "updatedAt": "2026-05-29T14:42:00.000Z"
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "repoUrl": "https://github.com/acme-corp/user-dashboard",
+    "featureDescription": "User profile settings with avatar upload and email verification",
+    "status": "completed",
+    "currentAgent": null,
+    "log": [],
+    "artifacts": [],
+    "gateReviews": [],
+    "defects": [],
+    "prUrl": "https://github.com/acme-corp/user-dashboard/pull/18",
+    "actionsRunUrl": null,
+    "createdAt": "2026-05-28T10:15:00.000Z",
+    "updatedAt": "2026-05-28T10:35:00.000Z"
+  },
+  {
+    "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    "repoUrl": "https://github.com/acme-corp/api-gateway",
+    "featureDescription": "Rate limiting middleware with Redis-backed token bucket",
+    "status": "failed",
+    "currentAgent": "gatekeeper",
+    "log": [],
+    "artifacts": [],
+    "gateReviews": [],
+    "defects": [],
+    "prUrl": null,
+    "actionsRunUrl": null,
+    "createdAt": "2026-05-27T16:45:00.000Z",
+    "updatedAt": "2026-05-27T17:02:00.000Z"
+  },
+  {
+    "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+    "repoUrl": "https://github.com/acme-corp/notification-service",
+    "featureDescription": "Push notification delivery with retry queue and delivery tracking",
+    "status": "completed",
+    "currentAgent": null,
+    "log": [],
+    "artifacts": [],
+    "gateReviews": [],
+    "defects": [],
+    "prUrl": "https://github.com/acme-corp/notification-service/pull/7",
+    "actionsRunUrl": "https://github.com/acme-corp/notification-service/actions/runs/67890",
+    "createdAt": "2026-05-26T09:00:00.000Z",
+    "updatedAt": "2026-05-26T09:25:00.000Z"
+  },
+  {
+    "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+    "repoUrl": "https://github.com/acme-corp/search-service",
+    "featureDescription": "Elasticsearch full-text search with autocomplete and faceted filters",
+    "status": "gate_blocked",
+    "currentAgent": "gatekeeper",
+    "log": [],
+    "artifacts": [],
+    "gateReviews": [],
+    "defects": [],
+    "prUrl": null,
+    "actionsRunUrl": null,
+    "createdAt": "2026-05-25T13:20:00.000Z",
+    "updatedAt": "2026-05-25T13:45:00.000Z"
+  }
+]

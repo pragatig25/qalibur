@@ -1,0 +1,22 @@
+[
+  {
+    "id": "def-001",
+    "runId": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    "testName": "Rate limiter allows burst above configured threshold",
+    "classification": "genuine",
+    "severity": "high",
+    "summary": "The token bucket implementation does not account for concurrent requests arriving within the same millisecond window, allowing 2-3x the configured rate limit during traffic spikes.",
+    "suggestedFix": "Add atomic increment using Redis MULTI/EXEC or Lua script to prevent race conditions in the token decrement path.",
+    "createdAt": "2026-05-27T17:00:00.000Z"
+  },
+  {
+    "id": "def-002",
+    "runId": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    "testName": "Redis connection timeout causes 500 instead of fallback",
+    "classification": "environment",
+    "severity": "medium",
+    "summary": "When Redis is unreachable, the rate limiter throws an unhandled exception instead of falling back to in-memory limiting or allowing the request through.",
+    "suggestedFix": "Wrap Redis calls in try/catch with a configurable fallback strategy (allow, deny, or in-memory limit).",
+    "createdAt": "2026-05-27T17:01:00.000Z"
+  }
+]
